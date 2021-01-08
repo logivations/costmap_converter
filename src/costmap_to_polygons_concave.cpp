@@ -58,10 +58,10 @@ CostmapToPolygonsDBSConcaveHull::~CostmapToPolygonsDBSConcaveHull()
 
 void CostmapToPolygonsDBSConcaveHull::initialize(ros::NodeHandle nh)
 {
-    nh.param("cluster_max_distance", parameter_.max_distance_, 0.4);
+    nh.param("cluster_max_distance", parameter_.max_distance_, 0.25);
     nh.param("cluster_min_pts", parameter_.min_pts_, 2);
-    nh.param("cluster_max_pts", parameter_.max_pts_, 30);
-    nh.param("convex_hull_min_pt_separation", parameter_.min_keypoint_separation_, 0.1);
+    nh.param("cluster_max_pts", parameter_.max_pts_, 50);
+    nh.param("convex_hull_min_pt_separation", parameter_.min_keypoint_separation_, 0.08);
     parameter_buffered_ = parameter_;
     
     nh.param("concave_hull_depth", concave_hull_depth_, 2.0);
