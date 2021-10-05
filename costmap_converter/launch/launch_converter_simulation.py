@@ -11,6 +11,13 @@ from nav2_common.launch import RewrittenYaml
 from ament_index_python.packages import get_package_share_directory
 from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
 from launch_ros.actions import PushRosNamespace
+from configparser import ConfigParser
+
+config = ConfigParser()
+config.read("/data/workspace/deep_cv/appconfig/tracking/agv_id.ini")
+if not config.read("/data/appconfig_static/tracking/agv_id.ini"):
+    config.read("/data/workspace/deep_cv/appconfig/tracking/agv_id.ini")
+AMR_ID = config.getint("conf", "agv_id")
 
 
 def generate_launch_description():
@@ -50,7 +57,7 @@ def generate_launch_description():
         launch_ros.actions.Node(
             package='costmap_converter', executable='standalone_converter', output='screen',
             parameters=[{"rolling_window": False,
-                         "map_topic": "/agv1/global_costmap/costmap_node/map",
+                         "map_topic": f"/agv{AMR_ID}/global_costmap/costmap_node/map",
                          "wait_tf_on_activate": False,
                          "static_layer.subscribe_to_updates": True,
                          "static_layer.map_subscribe_transient_local": True
