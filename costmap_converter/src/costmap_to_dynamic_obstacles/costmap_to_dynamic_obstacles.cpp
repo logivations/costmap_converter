@@ -364,7 +364,7 @@ void CostmapToDynamicObstacles::updateCostmap2D()
                         costmap_->getCharMap());
 }
 
-ObstacleArrayConstPtr CostmapToDynamicObstacles::getObstacles()
+ObstacleArrayPtr CostmapToDynamicObstacles::getObstacles()
 {
   std::lock_guard<std::mutex> lock(mutex_);
   return obstacles_;

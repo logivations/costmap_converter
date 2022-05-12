@@ -131,16 +131,14 @@ class CostmapStandaloneConversion : public rclcpp::Node {
   }
 
   void publishCallback() {
-    costmap_converter::ObstacleArrayConstPtr obstacles =
+    costmap_converter::ObstacleArrayPtr obstacles =
         converter_->getObstacles();
-
     if (!obstacles) return;
-
-    obstacle_pub_->publish(*obstacles);
-
     frame_id_ = costmap_ros_->getGlobalFrameID();
-
-    publishAsMarker(frame_id_, *obstacles);
+    obstacles->header.frame_id = frame_id_;
+    obstacles->header.stamp = now();
+    obstacle_pub_->publish(*obstacles);
+    publishAsMarker(*obstacles);
   }
 
   void publishAsMarker(
@@ -191,11 +189,10 @@ class CostmapStandaloneConversion : public rclcpp::Node {
   }
 
   void publishAsMarker(
-      const std::string &frame_id,
       const costmap_converter_msgs::msg::ObstacleArrayMsg &obstacles) {
     visualization_msgs::msg::Marker line_list;
-    line_list.header.frame_id = frame_id;
-    line_list.header.stamp = now();
+    line_list.header.frame_id = obstacles.header.frame_id;
+    line_list.header.stamp = obstacles.header.stamp;
     line_list.ns = "Polygons";
     line_list.action = visualization_msgs::msg::Marker::ADD;
     line_list.pose.orientation.w = 1.0;

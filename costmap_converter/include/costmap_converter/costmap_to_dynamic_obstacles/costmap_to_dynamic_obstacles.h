@@ -118,7 +118,7 @@ public:
    * method returns an empty instance!
    * @return Shared instance of the current obstacle container
    */
-  ObstacleArrayConstPtr getObstacles();
+  ObstacleArrayPtr getObstacles();
 
   /**
    * @brief Set name of robot's odometry topic
