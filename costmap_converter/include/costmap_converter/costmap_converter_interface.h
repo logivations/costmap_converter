@@ -136,11 +136,9 @@ public:
    * @return Shared instance of the current obstacle container
    * @sa getPolygons
    */
-    virtual ObstacleArrayConstPtr getObstacles()
+    virtual ObstacleArrayPtr getObstacles()
     {
       ObstacleArrayPtr obstacles = std::make_shared<costmap_converter_msgs::msg::ObstacleArrayMsg>();
-      obstacles->header.frame_id = "odom";
-      obstacles->header.stamp = now();
       PolygonContainerConstPtr polygons = getPolygons();
       if (polygons)
       {
