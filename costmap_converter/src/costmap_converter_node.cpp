@@ -133,9 +133,7 @@ class CostmapStandaloneConversion : public rclcpp::Node {
   void publishCallback() {
     costmap_converter::ObstacleArrayPtr obstacles =
         converter_->getObstacles();
-    
     if (!obstacles) return;
-    
     frame_id_ = costmap_ros_->getGlobalFrameID();
     obstacles->header.frame_id = frame_id_;
     obstacles->header.stamp = now();
