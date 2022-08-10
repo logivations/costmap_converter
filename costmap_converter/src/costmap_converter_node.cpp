@@ -119,10 +119,9 @@ class CostmapStandaloneConversion : public rclcpp::Node {
 
     if (converter_) {
       converter_->setOdomTopic(odom_topic);
-      converter_->initialize(
-          std::make_shared<rclcpp::Node>("intra_node", "costmap_converter"));
+      converter_->initialize(shared_from_this());
       converter_->startWorker(std::make_shared<rclcpp::Rate>(5),
-                              costmap_ros_->getCostmap(), true);
+                              costmap_ros_->getCostmap(), false);
     }
 
     pub_timer_ = n_->create_wall_timer(
