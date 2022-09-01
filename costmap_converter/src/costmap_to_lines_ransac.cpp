@@ -60,38 +60,43 @@ void CostmapToLinesDBSRANSAC::initialize(rclcpp::Node::SharedPtr nh)
     BaseCostmapToPolygons::initialize(nh);
     
     // DB SCAN
-    parameter_.max_distance_ = 0.4;
     nh->get_parameter_or<double>("cluster_max_distance", parameter_.max_distance_, parameter_.max_distance_);
-    
-    parameter_.min_pts_ = 2;
     nh->get_parameter_or<int>("cluster_min_pts", parameter_.min_pts_, parameter_.min_pts_);
-    
-    parameter_.max_pts_ = 30;
     nh->get_parameter_or<int>("cluster_max_pts", parameter_.max_pts_, parameter_.max_pts_);
-    
     // convex hull (only necessary if outlier filtering is enabled)
-    parameter_.min_keypoint_separation_ = 0.1;
     nh->get_parameter_or<double>("convex_hull_min_pt_separation", parameter_.min_keypoint_separation_, parameter_.min_keypoint_separation_);
 
     parameter_buffered_ = parameter_;
 
     // ransac
     ransac_inlier_distance_ = 0.2;
+    nh->declare_parameter("ransac_inlier_distance",
+                      rclcpp::ParameterValue(2.0));
     nh->get_parameter_or<double>("ransac_inlier_distance", ransac_inlier_distance_, ransac_inlier_distance_);
     
     ransac_min_inliers_ = 10;
+    nh->declare_parameter("ransac_min_inliers",
+                      rclcpp::ParameterValue(10));
     nh->get_parameter_or<int>("ransac_min_inliers", ransac_min_inliers_, ransac_min_inliers_);
     
     ransac_no_iterations_ = 2000;
+    nh->declare_parameter("ransac_no_iterations",
+                      rclcpp::ParameterValue(2000));
     nh->get_parameter_or<int>("ransac_no_iterations", ransac_no_iterations_, ransac_no_iterations_);
    
     ransac_remainig_outliers_ = 3;
+    nh->declare_parameter("ransac_remainig_outliers",
+                      rclcpp::ParameterValue(3));
     nh->get_parameter_or<int>("ransac_remainig_outliers", ransac_remainig_outliers_, ransac_remainig_outliers_);
     
     ransac_convert_outlier_pts_ = true;
+    nh->declare_parameter("ransac_convert_outlier_pts",
+                      rclcpp::ParameterValue(true));
     nh->get_parameter_or<bool>("ransac_convert_outlier_pts", ransac_convert_outlier_pts_, ransac_convert_outlier_pts_);
     
     ransac_filter_remaining_outlier_pts_ = false;
+    nh->declare_parameter("ransac_filter_remaining_outlier_pts",
+                      rclcpp::ParameterValue(false));
     nh->get_parameter_or<bool>("ransac_filter_remaining_outlier_pts", ransac_filter_remaining_outlier_pts_, ransac_filter_remaining_outlier_pts_);
     
     // setup dynamic reconfigure

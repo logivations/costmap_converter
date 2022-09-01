@@ -60,21 +60,16 @@ void CostmapToPolygonsDBSConcaveHull::initialize(rclcpp::Node::SharedPtr nh)
 { 
     BaseCostmapToPolygons::initialize(nh);
     
-    parameter_.max_distance_ = 0.2;
     nh->get_parameter_or<double>("cluster_max_distance", parameter_.max_distance_, parameter_.max_distance_);
-    
-    parameter_.min_pts_ = 2;
     nh->get_parameter_or<int>("cluster_min_pts", parameter_.min_pts_, parameter_.min_pts_);
-    
-    parameter_.max_pts_ = 50;
     nh->get_parameter_or<int>("cluster_max_pts", parameter_.max_pts_, parameter_.max_pts_);
-    
-    parameter_.min_keypoint_separation_ = 0.1;
     nh->get_parameter_or<double>("convex_hull_min_pt_separation", parameter_.min_keypoint_separation_, parameter_.min_keypoint_separation_);
     
     parameter_buffered_ = parameter_;
 
     concave_hull_depth_ = 2.0;
+    nh->declare_parameter("concave_hull_depth",
+                      rclcpp::ParameterValue(2.0));
     nh->get_parameter_or<double>("concave_hull_depth", concave_hull_depth_, concave_hull_depth_);
     
     // setup dynamic reconfigure
