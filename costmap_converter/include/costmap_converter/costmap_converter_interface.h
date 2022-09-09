@@ -86,6 +86,14 @@ public:
      */
     virtual void initialize(rclcpp::Node::SharedPtr nh) {
       nh_ = nh;
+      nh_->declare_parameter("cluster_max_distance",
+                      rclcpp::ParameterValue(0.4));
+      nh_->declare_parameter("cluster_min_pts",
+                      rclcpp::ParameterValue(2));
+      nh_->declare_parameter("cluster_max_pts",
+                      rclcpp::ParameterValue(30));
+      nh_->declare_parameter("convex_hull_min_pt_separation",
+                      rclcpp::ParameterValue(0.1));
     }
     
     /**
