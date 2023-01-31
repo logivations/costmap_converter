@@ -127,14 +127,49 @@ void CostmapToPolygonsDBSMCCH::initialize(rclcpp::Node::SharedPtr nh)
     nh->get_parameter_or<int>("cluster_max_pts", parameter_.max_pts_, parameter_.max_pts_);
     nh->get_parameter_or<double>("convex_hull_min_pt_separation", parameter_.min_keypoint_separation_, parameter_.min_keypoint_separation_);
 
-    parameter_buffered_ = parameter_;
-
-    // setup dynamic reconfigure
-//    dynamic_recfg_ = new dynamic_reconfigure::Server<CostmapToPolygonsDBSMCCHConfig>(nh);
-//    dynamic_reconfigure::Server<CostmapToPolygonsDBSMCCHConfig>::CallbackType cb = boost::bind(&CostmapToPolygonsDBSMCCH::reconfigureCB, this, _1, _2);
-//    dynamic_recfg_->setCallback(cb);
+    dyn_params_handler_ = nh->add_on_set_parameters_callback(
+    std::bind(
+      &CostmapToPolygonsDBSMCCH::dynamicParametersCallback,
+      this,
+      std::placeholders::_1));
 }
 
+
+rcl_interfaces::msg::SetParametersResult CostmapToPolygonsDBSMCCH::dynamicParametersCallback(
+  std::vector<rclcpp::Parameter> parameters)
+{
+  rcl_interfaces::msg::SetParametersResult result;
+
+  for (auto parameter : parameters) {
+    const auto & param_type = parameter.get_type();
+    const auto & param_name = parameter.get_name();
+    RCLCPP_WARN(rclcpp::get_logger("test"), "param_name: %s", param_name.c_str());
+
+    if (param_type == rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE) {
+      if (param_name == "cluster_max_distance") {
+        parameter_.max_distance_ = parameter.as_double();
+      }
+      else if (param_name == "convex_hull_min_pt_separation") {
+        parameter_.min_keypoint_separation_ = parameter.as_double();
+      }
+    }
+
+    if (param_type == rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER) {
+
+      if (param_name == "cluster_min_pts") {
+        parameter_.min_pts_ = parameter.as_int();
+      }
+      else if (param_name == "cluster_max_pts") {
+        RCLCPP_WARN(rclcpp::get_logger("test"), "before parameter_.max_pts_: %d", parameter_.max_pts_);
+        parameter_.max_pts_ = parameter.as_int();
+        RCLCPP_WARN(rclcpp::get_logger("test"), "after parameter_.max_pts_: %d", parameter_.max_pts_);
+
+      }
+    }
+  }
+  result.successful = true;
+  return result;
+}
 
 void CostmapToPolygonsDBSMCCH::compute()
 {
@@ -184,12 +219,6 @@ void CostmapToPolygonsDBSMCCH::updateCostmap2D()
       {
         RCLCPP_ERROR(getLogger(), "Cannot update costmap since the mutex pointer is null");
         return;
-      }
-
-      // TODO: currently dynamic reconigure is not supported in ros2
-      { // get a copy of our parameters from dynamic reconfigure
-        std::lock_guard<std::mutex> lock(parameter_mutex_);
-        parameter_ = parameter_buffered_;
       }
 
       std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*costmap_->getMutex());
@@ -492,14 +521,6 @@ PolygonContainerConstPtr CostmapToPolygonsDBSMCCH::getPolygons()
   return polygons;
 }
 
-//void CostmapToPolygonsDBSMCCH::reconfigureCB(CostmapToPolygonsDBSMCCHConfig& config, uint32_t level)
-//{
-  //boost::mutex::scoped_lock lock(parameter_mutex_);
-  //parameter_buffered_.max_distance_ = config.cluster_max_distance;
-  //parameter_buffered_.min_pts_ = config.cluster_min_pts;
-  //parameter_buffered_.max_pts_ = config.cluster_max_pts;
-  //parameter_buffered_.min_keypoint_separation_ = config.convex_hull_min_pt_separation;
-//}
 
 }//end namespace costmap_converter
 

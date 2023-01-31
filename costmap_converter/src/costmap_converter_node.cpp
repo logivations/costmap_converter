@@ -147,15 +147,15 @@ class CostmapStandaloneConversion : public rclcpp::Node {
     visualization_msgs::msg::Marker line_list;
     line_list.header.frame_id = frame_id;
     line_list.header.stamp = now();
-    line_list.ns = "Polygons";
+    line_list.ns = "Poly";
     line_list.action = visualization_msgs::msg::Marker::ADD;
     line_list.pose.orientation.w = 1.0;
 
     line_list.id = 0;
     line_list.type = visualization_msgs::msg::Marker::LINE_LIST;
 
-    line_list.scale.x = 0.1;
-    line_list.color.g = 1.0;
+    line_list.scale.x = 0.3;
+    line_list.color.b = 1.0;
     line_list.color.a = 1.0;
 
     for (std::size_t i = 0; i < polygonStamped.size(); ++i) {
@@ -200,7 +200,7 @@ class CostmapStandaloneConversion : public rclcpp::Node {
     line_list.id = 0;
     line_list.type = visualization_msgs::msg::Marker::LINE_LIST;
 
-    line_list.scale.x = 0.1;
+    line_list.scale.x = 0.01;
     line_list.color.g = 1.0;
     line_list.color.a = 1.0;
 

@@ -306,8 +306,17 @@ class CostmapToPolygonsDBSMCCH : public BaseCostmapToPolygons
 
     Parameters parameter_;          //< active parameters throughout computation
     Parameters parameter_buffered_; //< the buffered parameters that are offered to dynamic reconfigure
-    std::mutex parameter_mutex_;  //!< Mutex that keeps track about the ownership of the shared polygon instance
-   
+  /**
+   * @brief Callback executed when a parameter change is detected
+   * @param event ParameterEvent message
+   */
+
+    // @brief Dynamic parameters handler
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
+
+    rcl_interfaces::msg::SetParametersResult
+    dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
+  
   private:
        
     /**
@@ -322,8 +331,6 @@ class CostmapToPolygonsDBSMCCH : public BaseCostmapToPolygons
     
     PolygonContainerPtr polygons_; //!< Current shared container of polygons
     std::mutex mutex_; //!< Mutex that keeps track about the ownership of the shared polygon instance
-    
-    //dynamic_reconfigure::Server<CostmapToPolygonsDBSMCCHConfig>* dynamic_recfg_; //!< Dynamic reconfigure server to allow config modifications at runtime
    
     nav2_costmap_2d::Costmap2D *costmap_; //!< Pointer to the costmap2d
    
