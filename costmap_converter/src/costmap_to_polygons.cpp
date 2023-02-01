@@ -143,7 +143,6 @@ rcl_interfaces::msg::SetParametersResult CostmapToPolygonsDBSMCCH::dynamicParame
   for (auto parameter : parameters) {
     const auto & param_type = parameter.get_type();
     const auto & param_name = parameter.get_name();
-    RCLCPP_WARN(rclcpp::get_logger("test"), "param_name: %s", param_name.c_str());
 
     if (param_type == rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE) {
       if (param_name == "cluster_max_distance") {
@@ -160,9 +159,7 @@ rcl_interfaces::msg::SetParametersResult CostmapToPolygonsDBSMCCH::dynamicParame
         parameter_.min_pts_ = parameter.as_int();
       }
       else if (param_name == "cluster_max_pts") {
-        RCLCPP_WARN(rclcpp::get_logger("test"), "before parameter_.max_pts_: %d", parameter_.max_pts_);
         parameter_.max_pts_ = parameter.as_int();
-        RCLCPP_WARN(rclcpp::get_logger("test"), "after parameter_.max_pts_: %d", parameter_.max_pts_);
 
       }
     }
