@@ -147,7 +147,7 @@ class CostmapStandaloneConversion : public rclcpp::Node {
     visualization_msgs::msg::Marker line_list;
     line_list.header.frame_id = frame_id;
     line_list.header.stamp = now();
-    line_list.ns = "Poly";
+    line_list.ns = "Polygons";
     line_list.action = visualization_msgs::msg::Marker::ADD;
     line_list.pose.orientation.w = 1.0;
 
