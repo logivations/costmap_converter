@@ -200,7 +200,7 @@ class CostmapStandaloneConversion : public rclcpp::Node {
     line_list.id = 0;
     line_list.type = visualization_msgs::msg::Marker::LINE_LIST;
 
-    line_list.scale.x = 0.1;
+    line_list.scale.x = 0.01;
     line_list.color.g = 1.0;
     line_list.color.a = 1.0;
 
