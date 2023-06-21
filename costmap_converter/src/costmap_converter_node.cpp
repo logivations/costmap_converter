@@ -125,20 +125,52 @@ class CostmapStandaloneConversion : public rclcpp::Node {
                               costmap_ros_->getCostmap(), true);
     }
 
+    last_publish_time_ = now();
+    cb_group1_ = this->create_callback_group(
+        rclcpp::CallbackGroupType::MutuallyExclusive);
+    cb_group2_ = this->create_callback_group(
+        rclcpp::CallbackGroupType::MutuallyExclusive);
     pub_timer_ = n_->create_wall_timer(
         std::chrono::milliseconds(200),
-        std::bind(&CostmapStandaloneConversion::publishCallback, this));
+        std::bind(&CostmapStandaloneConversion::publishCallback, this), cb_group1_);
+    health_check_timer_ = n_->create_wall_timer(
+        std::chrono::milliseconds(5000),
+        std::bind(&CostmapStandaloneConversion::healthCheck, this), cb_group2_);
   }
 
+  void healthCheck() {
+    if (respawn_ && now() - last_publish_time_ > std::chrono::seconds(20)){
+      exit(0);
+    }
+    if (now() - last_publish_time_ > std::chrono::seconds(10)) {
+      RCLCPP_ERROR(get_logger(), "costmap_converter_node has not published for 10 seconds, terminating...");
+      respawn_ = true;
+    }
+  }
+
+
   void publishCallback() {
+    if (respawn_) {
+      RCLCPP_INFO(get_logger(), "getting obstacles...");
+    }
     costmap_converter::ObstacleArrayPtr obstacles =
         converter_->getObstacles();
+    if (respawn_) {
+      RCLCPP_INFO(get_logger(), "got obstacles");
+    }
     if (!obstacles) return;
     frame_id_ = costmap_ros_->getGlobalFrameID();
     obstacles->header.frame_id = frame_id_;
     obstacles->header.stamp = now();
     obstacle_pub_->publish(*obstacles);
+    if (respawn_) {
+      RCLCPP_INFO(get_logger(), "published obstacles");
+    }
     publishAsMarker(*obstacles);
+    if (respawn_) {
+      RCLCPP_INFO(get_logger(), "published markers");
+    }
+    last_publish_time_ = now();
   }
 
   void publishAsMarker(
@@ -245,18 +277,25 @@ class CostmapStandaloneConversion : public rclcpp::Node {
       obstacle_pub_;
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
   rclcpp::TimerBase::SharedPtr pub_timer_;
+  rclcpp::TimerBase::SharedPtr health_check_timer_;
 
   std::string frame_id_;
   int occupied_min_value_;
+  rclcpp::Time last_publish_time_;
+  bool respawn_ = false;
+  rclcpp::CallbackGroup::SharedPtr cb_group1_;
+  rclcpp::CallbackGroup::SharedPtr cb_group2_;
+
 };
 
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
 
+  auto executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
   auto convert_process =
       std::make_shared<CostmapStandaloneConversion>("costmap_converter");
-
-  rclcpp::spin(convert_process);
+  executor->add_node(convert_process);
+  executor->spin();
 
   return 0;
 }
