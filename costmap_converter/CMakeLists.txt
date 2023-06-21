@@ -24,7 +24,6 @@ find_package(tf2_ros REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(backward_ros REQUIRED)
 
 set(dependencies
     class_loader
