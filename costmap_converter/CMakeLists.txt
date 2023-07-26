@@ -24,6 +24,7 @@ find_package(tf2_ros REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
 
 set(dependencies
     class_loader
@@ -37,10 +38,37 @@ set(dependencies
     OpenCV
     pluginlib
     rclcpp
+    rclcpp_components
 )
 
 include_directories(
   include
+)
+
+set(executable_name standalone_converter)
+
+add_executable(${executable_name} src/costmap_converter_main.cpp)
+
+set(library_name ${executable_name}_core)
+
+add_library(${library_name} SHARED
+  src/costmap_converter_node.cpp
+)
+
+ament_target_dependencies(${library_name}
+  ${dependencies}
+)
+
+ament_target_dependencies(${executable_name}
+  ${dependencies}
+)
+
+target_link_libraries(${executable_name} ${library_name})
+
+rclcpp_components_register_nodes(${library_name} "CostmapStandaloneConversion")
+
+install(TARGETS ${executable_name}
+   DESTINATION lib/${PROJECT_NAME}
 )
 
 add_library(costmap_converter SHARED
@@ -60,20 +88,12 @@ ament_target_dependencies(costmap_converter
     ${dependencies}
 )
 
-add_executable(standalone_converter src/costmap_converter_node.cpp)
-
-target_link_libraries(standalone_converter
+target_link_libraries(${executable_name} 
     costmap_converter
 )
-ament_target_dependencies(standalone_converter
-  ${dependencies}
-)
 
-install(TARGETS costmap_converter
+install(TARGETS costmap_converter ${library_name} 
    DESTINATION lib
-)
-install(TARGETS standalone_converter
-   DESTINATION lib/${PROJECT_NAME}
 )
 
 install(DIRECTORY include/
@@ -81,7 +101,7 @@ install(DIRECTORY include/
 )
 
 ament_export_include_directories(include)
-ament_export_libraries(costmap_converter)
+ament_export_libraries(costmap_converter ${library_name} )
 ament_export_dependencies(${dependencies})
 pluginlib_export_plugin_description_file(costmap_converter costmap_converter_plugins.xml)
 
