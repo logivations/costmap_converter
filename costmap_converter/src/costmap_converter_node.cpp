@@ -54,7 +54,8 @@ class CostmapStandaloneConversion : public rclcpp::Node {
         converter_loader_("costmap_converter",
                           "costmap_converter::BaseCostmapToPolygons") {
     costmap_ros_ =
-        std::make_shared<nav2_costmap_2d::Costmap2DROS>("converter_costmap", std::string{get_namespace()}, "converter_costmap");
+        std::make_shared<nav2_costmap_2d::Costmap2DROS>("converter_costmap",
+         std::string{get_namespace()}, "converter_costmap", get_parameter("use_sim_time").as_bool());
     costmap_thread_ = std::make_unique<std::thread>(
         [](rclcpp_lifecycle::LifecycleNode::SharedPtr node) {
           rclcpp::spin(node->get_node_base_interface());
