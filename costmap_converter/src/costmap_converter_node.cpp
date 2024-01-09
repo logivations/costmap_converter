@@ -84,7 +84,7 @@ CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptio
     rclcpp::shutdown();
     return;
   }
-
+        
   RCLCPP_INFO(get_logger(), "Standalone costmap converter: %s loaded.",
               converter_plugin.c_str());
 
