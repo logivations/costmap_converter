@@ -43,7 +43,7 @@
 #ifndef BACKGROUNDSUBTRACTOR_H_
 #define BACKGROUNDSUBTRACTOR_H_
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 
 /**
  * @class BackgroundSubtractor
