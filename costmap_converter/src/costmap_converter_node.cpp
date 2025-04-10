@@ -113,6 +113,12 @@ CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptio
   get_parameter_or<int>("occupied_min_value", occupied_min_value_,
                         occupied_min_value_);
 
+  conversion_interval_ = 500;
+  declare_parameter("conversion_interval",
+                    rclcpp::ParameterValue(conversion_interval_));
+  get_parameter_or<int>("conversion_interval", conversion_interval_,
+                        conversion_interval_);
+
   std::string odom_topic = "/odom";
   declare_parameter("odom_topic", rclcpp::ParameterValue(odom_topic));
   get_parameter_or<std::string>("odom_topic", odom_topic, odom_topic);
@@ -121,8 +127,7 @@ CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptio
     converter_->setOdomTopic(odom_topic);
     converter_->initialize(
         shared_from_this());
-    converter_->startWorker(std::make_shared<rclcpp::Rate>(5),
-                            costmap_ros_->getCostmap(), false);
+    converter_->setCostmap2D(costmap_ros_->getCostmap());
   }
 
   last_publish_time_ = now();
@@ -131,7 +136,7 @@ CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptio
   cb_group2_ = this->create_callback_group(
       rclcpp::CallbackGroupType::MutuallyExclusive);
   pub_timer_ = n_->create_wall_timer(
-      std::chrono::milliseconds(200),
+      std::chrono::milliseconds(conversion_interval_),
       std::bind(&CostmapStandaloneConversion::publishCallback, this), cb_group1_);
   health_check_timer_ = n_->create_wall_timer(
       std::chrono::milliseconds(5000),
@@ -150,6 +155,7 @@ void CostmapStandaloneConversion::healthCheck() {
 
 
 void CostmapStandaloneConversion::publishCallback() {
+  converter_->workerCallback();
   if (respawn_) {
     RCLCPP_INFO(get_logger(), "getting obstacles...");
   }

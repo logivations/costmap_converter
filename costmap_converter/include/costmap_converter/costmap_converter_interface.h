@@ -235,6 +235,14 @@ public:
         delete spin_thread_;
       }
     }
+    /**
+     * @brief The callback of the worker that performs the actual work (updating the costmap and converting it to polygons)
+     */
+    void workerCallback()
+    {
+      updateCostmap2D();
+      compute();
+    }
 
 protected:
   
@@ -262,15 +270,7 @@ protected:
         }
       }
     }
-    
-    /**
-     * @brief The callback of the worker that performs the actual work (updating the costmap and converting it to polygons)
-     */
-    void workerCallback()
-    {
-      updateCostmap2D();
-      compute();
-    }
+
 
     rclcpp::Logger getLogger() const
     {
