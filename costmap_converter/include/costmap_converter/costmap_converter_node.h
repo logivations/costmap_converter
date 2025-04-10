@@ -74,6 +74,7 @@ class CostmapStandaloneConversion : public rclcpp::Node
 
   std::string frame_id_;
   int occupied_min_value_;
+  int conversion_interval_;
   rclcpp::Time last_publish_time_;
   bool respawn_ = false;
   rclcpp::CallbackGroup::SharedPtr cb_group1_;
