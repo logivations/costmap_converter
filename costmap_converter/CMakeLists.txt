@@ -76,12 +76,6 @@ add_library(costmap_converter SHARED
   src/costmap_to_polygons_concave.cpp
   src/costmap_to_lines_convex_hull.cpp
   src/costmap_to_lines_ransac.cpp
-  src/costmap_to_dynamic_obstacles/costmap_to_dynamic_obstacles.cpp
-  src/costmap_to_dynamic_obstacles/background_subtractor.cpp
-  src/costmap_to_dynamic_obstacles/blob_detector.cpp
-  src/costmap_to_dynamic_obstacles/multitarget_tracker/Ctracker.cpp
-  src/costmap_to_dynamic_obstacles/multitarget_tracker/Kalman.cpp
-  src/costmap_to_dynamic_obstacles/multitarget_tracker/HungarianAlg.cpp
 )
 
 ament_target_dependencies(costmap_converter 
