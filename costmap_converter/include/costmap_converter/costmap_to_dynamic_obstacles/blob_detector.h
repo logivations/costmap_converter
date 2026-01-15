@@ -91,7 +91,8 @@ public:
 
   //! Update internal parameters
   void updateParameters(const cv::SimpleBlobDetector::Params& parameters);
-
+    void setParams(const cv::SimpleBlobDetector::Params& params);
+    cv::SimpleBlobDetector::Params getParams() const;
 protected:
   struct Center
   {

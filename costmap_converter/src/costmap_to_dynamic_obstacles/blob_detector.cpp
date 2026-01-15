@@ -10,6 +10,16 @@ cv::Ptr<BlobDetector> BlobDetector::create(const cv::SimpleBlobDetector::Params&
   //return cv::makePtr<BlobDetector>(params);
 }
 
+void BlobDetector::setParams(const cv::SimpleBlobDetector::Params& params)
+{
+  params_ = params;
+}
+
+cv::SimpleBlobDetector::Params BlobDetector::getParams() const
+{
+  return params_;
+}
+
 void BlobDetector::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints, const cv::Mat&)
 {
   // TODO: support mask
