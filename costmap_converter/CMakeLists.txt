@@ -25,6 +25,7 @@ find_package(OpenCV REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 set(dependencies
     class_loader
@@ -39,6 +40,7 @@ set(dependencies
     pluginlib
     rclcpp
     rclcpp_components
+    visualization_msgs
 )
 
 include_directories(
