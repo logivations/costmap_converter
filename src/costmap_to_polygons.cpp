@@ -126,6 +126,7 @@ void CostmapToPolygonsDBSMCCH::initialize(ros::NodeHandle nh)
     nh.param("cluster_min_pts", parameter_.min_pts_, 2);
     nh.param("cluster_max_pts", parameter_.max_pts_, 30);
     nh.param("convex_hull_min_pt_separation", parameter_.min_keypoint_separation_, 0.1);
+    nh.param("plan_filter_distance", parameter_.plan_filter_distance_, 0.0);
     
     parameter_buffered_ = parameter_;
     
@@ -207,17 +208,67 @@ void CostmapToPolygonsDBSMCCH::updateCostmap2D()
       for (auto& n : neighbor_lookup_)
         n.clear();
 
-      // get indices of obstacle cells
-      for(std::size_t i = 0; i < costmap_->getSizeInCellsX(); i++)
+      // get a local copy of the global plan
+      std::vector<geometry_msgs::PoseStamped> plan;
       {
-        for(std::size_t j = 0; j < costmap_->getSizeInCellsY(); j++)
+        boost::mutex::scoped_lock lock(plan_mutex_);
+        plan = global_plan_;
+      }
+
+      std::size_t size_x = costmap_->getSizeInCellsX();
+      std::size_t size_y = costmap_->getSizeInCellsY();
+
+      if (!plan.empty() && parameter_.plan_filter_distance_ > 0)
+      {
+        // Only process cells within plan_filter_distance of the global plan
+        int radius_cells = static_cast<int>(std::ceil(parameter_.plan_filter_distance_ / costmap_->getResolution()));
+        std::vector<bool> visited(size_x * size_y, false);
+
+        for (const geometry_msgs::PoseStamped& pose : plan)
         {
-          int value = costmap_->getCost(i,j);
-          if(value >= costmap_2d::LETHAL_OBSTACLE)
+          unsigned int mx, my;
+          if (!costmap_->worldToMap(pose.pose.position.x, pose.pose.position.y, mx, my))
+            continue; // plan point outside costmap bounds
+
+          // compute bounding box clamped to map bounds
+          int min_i = std::max(0, static_cast<int>(mx) - radius_cells);
+          int max_i = std::min(static_cast<int>(size_x) - 1, static_cast<int>(mx) + radius_cells);
+          int min_j = std::max(0, static_cast<int>(my) - radius_cells);
+          int max_j = std::min(static_cast<int>(size_y) - 1, static_cast<int>(my) + radius_cells);
+
+          for (int i = min_i; i <= max_i; ++i)
           {
-            double x, y;
-            costmap_->mapToWorld((unsigned int)i, (unsigned int)j, x, y);
-            addPoint(x, y);
+            for (int j = min_j; j <= max_j; ++j)
+            {
+              std::size_t idx = static_cast<std::size_t>(j) * size_x + static_cast<std::size_t>(i);
+              if (visited[idx])
+                continue;
+              visited[idx] = true;
+
+              if (costmap_->getCost(i, j) >= costmap_2d::LETHAL_OBSTACLE)
+              {
+                double x, y;
+                costmap_->mapToWorld(static_cast<unsigned int>(i), static_cast<unsigned int>(j), x, y);
+                addPoint(x, y);
+              }
+            }
+          }
+        }
+      }
+      else
+      {
+        // No plan filter: process all cells (original behavior)
+        for (std::size_t i = 0; i < size_x; i++)
+        {
+          for (std::size_t j = 0; j < size_y; j++)
+          {
+            int value = costmap_->getCost(i, j);
+            if (value >= costmap_2d::LETHAL_OBSTACLE)
+            {
+              double x, y;
+              costmap_->mapToWorld(static_cast<unsigned int>(i), static_cast<unsigned int>(j), x, y);
+              addPoint(x, y);
+            }
           }
         }
       }
@@ -489,6 +540,12 @@ PolygonContainerConstPtr CostmapToPolygonsDBSMCCH::getPolygons()
   return polygons;
 }
 
+void CostmapToPolygonsDBSMCCH::setGlobalPlan(const std::vector<geometry_msgs::PoseStamped>& plan)
+{
+  boost::mutex::scoped_lock lock(plan_mutex_);
+  global_plan_ = plan;
+}
+
 void CostmapToPolygonsDBSMCCH::reconfigureCB(CostmapToPolygonsDBSMCCHConfig& config, uint32_t level)
 {
   boost::mutex::scoped_lock lock(parameter_mutex_);
@@ -496,6 +553,7 @@ void CostmapToPolygonsDBSMCCH::reconfigureCB(CostmapToPolygonsDBSMCCHConfig& con
   parameter_buffered_.min_pts_ = config.cluster_min_pts;
   parameter_buffered_.max_pts_ = config.cluster_max_pts;
   parameter_buffered_.min_keypoint_separation_ = config.convex_hull_min_pt_separation;
+  parameter_buffered_.plan_filter_distance_ = config.plan_filter_distance;
 }
 
 }//end namespace costmap_converter

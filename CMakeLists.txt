@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   message_generation
   costmap_2d
+  nav_msgs
   dynamic_reconfigure
   pluginlib
   cv_bridge
@@ -124,10 +125,11 @@ catkin_package(
   LIBRARIES costmap_converter
   CATKIN_DEPENDS 
     geometry_msgs
+    nav_msgs
     pluginlib
-    roscpp 
+    roscpp
     std_msgs
-    message_runtime 
+    message_runtime
     dynamic_reconfigure
     costmap_2d
   #DEPENDS 

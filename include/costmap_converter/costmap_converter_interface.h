@@ -46,6 +46,7 @@
 #include <costmap_2d/costmap_2d.h>
 #include <costmap_2d/costmap_2d_ros.h>
 #include <geometry_msgs/Polygon.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <costmap_converter/ObstacleArrayMsg.h>
 
 
@@ -155,6 +156,15 @@ public:
      * @param odom_topic topic name
      */
     virtual void setOdomTopic(const std::string& odom_topic) {}
+
+    /**
+     * @brief Set the global plan to restrict costmap conversion to areas near the plan
+     *
+     * Some plugins use this to only process costmap cells within a certain
+     * distance of the global plan, reducing overhead on large maps.
+     * @param plan global plan as a sequence of stamped poses
+     */
+    virtual void setGlobalPlan(const std::vector<geometry_msgs::PoseStamped>& plan) {}
 
     /**
      * @brief Determines whether an additional plugin for subsequent costmap conversion is specified

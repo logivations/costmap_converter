@@ -40,6 +40,7 @@
 
 #include <costmap_2d/costmap_2d.h>
 #include <nav_msgs/OccupancyGrid.h>
+#include <nav_msgs/Path.h>
 #include <geometry_msgs/PolygonStamped.h>
 #include <visualization_msgs/Marker.h>
 
@@ -92,6 +93,10 @@ public:
       std::string odom_topic = "/odom";
       n_.param("odom_topic", odom_topic, odom_topic);
 
+      std::string global_plan_topic = "/move_base/GlobalPlanner/plan";
+      n_.param("global_plan_topic", global_plan_topic, global_plan_topic);
+      global_plan_sub_ = n_.subscribe(global_plan_topic, 1, &CostmapStandaloneConversion::globalPlanCallback, this);
+
       if (converter_)
       {
         converter_->setOdomTopic(odom_topic);
@@ -137,6 +142,12 @@ public:
       frame_id_ = msg->header.frame_id;
 
       publishAsMarker(frame_id_, *obstacles, marker_pub_);
+  }
+
+  void globalPlanCallback(const nav_msgs::Path::ConstPtr& msg)
+  {
+    if (converter_)
+      converter_->setGlobalPlan(msg->poses);
   }
 
   void costmapUpdateCallback(const map_msgs::OccupancyGridUpdateConstPtr& update)
@@ -271,6 +282,7 @@ private:
   ros::NodeHandle n_;
   ros::Subscriber costmap_sub_;
   ros::Subscriber costmap_update_sub_;
+  ros::Subscriber global_plan_sub_;
   ros::Publisher obstacle_pub_;
   ros::Publisher marker_pub_;
 

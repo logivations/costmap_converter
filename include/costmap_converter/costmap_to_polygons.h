@@ -51,6 +51,7 @@
 #include <Eigen/StdVector>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/thread.hpp>
+#include <geometry_msgs/PoseStamped.h>
 
 // dynamic reconfigure
 #include <costmap_converter/CostmapToPolygonsDBSMCCHConfig.h>
@@ -105,14 +106,17 @@ class CostmapToPolygonsDBSMCCH : public BaseCostmapToPolygons
      */
     struct Parameters
     {
-      Parameters() : max_distance_(0.4), min_pts_(2), max_pts_(30), min_keypoint_separation_(0.1) {}
+      Parameters() : max_distance_(0.4), min_pts_(2), max_pts_(30), min_keypoint_separation_(0.1), plan_filter_distance_(0.0) {}
       // DBSCAN parameters
       double max_distance_; //!< Parameter for DB_Scan, maximum distance to neighbors [m]
       int min_pts_; //!< Parameter for DB_Scan: minimum number of points that define a cluster
       int max_pts_; //!< Parameter for DB_Scan: maximum number of points that define a cluster (to avoid large L- and U-shapes)
-      
+
       // convex hull parameters
       double min_keypoint_separation_; //!< Clear keypoints of the convex polygon that are close to each other [distance in meters] (0: keep all)
+
+      // plan filter parameters
+      double plan_filter_distance_; //!< Only process costmap cells within this distance [m] of the global plan (0: disabled, process all cells)
     };
     
     /**
@@ -172,8 +176,12 @@ class CostmapToPolygonsDBSMCCH : public BaseCostmapToPolygons
      */
     PolygonContainerConstPtr getPolygons();
 
-    
-    
+    /**
+     * @brief Set the global plan to restrict costmap conversion to areas near the plan
+     * @param plan global plan as a sequence of stamped poses
+     */
+    virtual void setGlobalPlan(const std::vector<geometry_msgs::PoseStamped>& plan);
+
   protected:
     
     /**
@@ -308,6 +316,9 @@ class CostmapToPolygonsDBSMCCH : public BaseCostmapToPolygons
     Parameters parameter_;          //< active parameters throughout computation
     Parameters parameter_buffered_; //< the buffered parameters that are offered to dynamic reconfigure
     boost::mutex parameter_mutex_;  //!< Mutex that keeps track about the ownership of the shared polygon instance
+
+    std::vector<geometry_msgs::PoseStamped> global_plan_; //!< Current global plan for spatial filtering
+    boost::mutex plan_mutex_; //!< Mutex protecting access to global_plan_
    
   private:
        
