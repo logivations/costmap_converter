@@ -126,6 +126,7 @@ void CostmapToPolygonsDBSMCCH::initialize(rclcpp::Node::SharedPtr nh)
     nh->get_parameter_or<int>("cluster_min_pts", parameter_.min_pts_, parameter_.min_pts_);
     nh->get_parameter_or<int>("cluster_max_pts", parameter_.max_pts_, parameter_.max_pts_);
     nh->get_parameter_or<double>("convex_hull_min_pt_separation", parameter_.min_keypoint_separation_, parameter_.min_keypoint_separation_);
+    nh->get_parameter_or<double>("plan_filter_distance", parameter_.plan_filter_distance_, parameter_.plan_filter_distance_);
 
     dyn_params_handler_ = nh->add_on_set_parameters_callback(
     std::bind(
@@ -150,6 +151,9 @@ rcl_interfaces::msg::SetParametersResult CostmapToPolygonsDBSMCCH::dynamicParame
       }
       else if (param_name == "convex_hull_min_pt_separation") {
         parameter_.min_keypoint_separation_ = parameter.as_double();
+      }
+      else if (param_name == "plan_filter_distance") {
+        parameter_.plan_filter_distance_ = parameter.as_double();
       }
     }
 
@@ -234,19 +238,67 @@ void CostmapToPolygonsDBSMCCH::updateCostmap2D()
       for (auto& n : neighbor_lookup_)
         n.clear();
 
+      // get a local copy of the global plan
+      std::vector<geometry_msgs::msg::PoseStamped> plan;
+      {
+        std::lock_guard<std::mutex> lock(plan_mutex_);
+        plan = global_plan_;
+      }
+
       auto size_x = costmap_->getSizeInCellsX();
       auto size_y = costmap_->getSizeInCellsY();
-      // get indices of obstacle cells
-      for(std::size_t i = 0; i < size_x; i++)
+
+      if (!plan.empty() && parameter_.plan_filter_distance_ > 0)
       {
-        for(std::size_t j = 0; j < size_y; j++)
+        // Only process cells within plan_filter_distance of the global plan
+        int radius_cells = static_cast<int>(std::ceil(parameter_.plan_filter_distance_ / costmap_->getResolution()));
+        std::vector<bool> visited(size_x * size_y, false);
+
+        for (const geometry_msgs::msg::PoseStamped& pose : plan)
         {
-          int value = costmap_->getCost(i,j);
-          if(value >= nav2_costmap_2d::LETHAL_OBSTACLE)
+          unsigned int mx, my;
+          if (!costmap_->worldToMap(pose.pose.position.x, pose.pose.position.y, mx, my))
+            continue; // plan point outside costmap bounds
+
+          // compute bounding box clamped to map bounds
+          int min_i = std::max(0, static_cast<int>(mx) - radius_cells);
+          int max_i = std::min(static_cast<int>(size_x) - 1, static_cast<int>(mx) + radius_cells);
+          int min_j = std::max(0, static_cast<int>(my) - radius_cells);
+          int max_j = std::min(static_cast<int>(size_y) - 1, static_cast<int>(my) + radius_cells);
+
+          for (int i = min_i; i <= max_i; ++i)
           {
-            double x, y;
-            costmap_->mapToWorld((unsigned int)i, (unsigned int)j, x, y);
-            addPoint(x, y);
+            for (int j = min_j; j <= max_j; ++j)
+            {
+              std::size_t idx = static_cast<std::size_t>(j) * size_x + static_cast<std::size_t>(i);
+              if (visited[idx])
+                continue;
+              visited[idx] = true;
+
+              if (costmap_->getCost(i, j) >= nav2_costmap_2d::LETHAL_OBSTACLE)
+              {
+                double x, y;
+                costmap_->mapToWorld(static_cast<unsigned int>(i), static_cast<unsigned int>(j), x, y);
+                addPoint(x, y);
+              }
+            }
+          }
+        }
+      }
+      else
+      {
+        // No plan filter: process all cells (original behavior)
+        for (std::size_t i = 0; i < size_x; i++)
+        {
+          for (std::size_t j = 0; j < size_y; j++)
+          {
+            int value = costmap_->getCost(i, j);
+            if (value >= nav2_costmap_2d::LETHAL_OBSTACLE)
+            {
+              double x, y;
+              costmap_->mapToWorld(static_cast<unsigned int>(i), static_cast<unsigned int>(j), x, y);
+              addPoint(x, y);
+            }
           }
         }
       }
@@ -516,6 +568,12 @@ PolygonContainerConstPtr CostmapToPolygonsDBSMCCH::getPolygons()
   std::lock_guard<std::mutex> lock(mutex_);
   PolygonContainerConstPtr polygons = polygons_;
   return polygons;
+}
+
+void CostmapToPolygonsDBSMCCH::setGlobalPlan(const std::vector<geometry_msgs::msg::PoseStamped>& plan)
+{
+  std::lock_guard<std::mutex> lock(plan_mutex_);
+  global_plan_ = plan;
 }
 
 

@@ -48,6 +48,7 @@
 #include <nav2_costmap_2d/costmap_2d.hpp>
 #include <nav2_costmap_2d/costmap_2d_ros.hpp>
 #include <geometry_msgs/msg/polygon.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <costmap_converter_msgs/msg/obstacle_array_msg.hpp>
 
 namespace costmap_converter
@@ -94,6 +95,8 @@ public:
                       rclcpp::ParameterValue(30));
       nh_->declare_parameter("convex_hull_min_pt_separation",
                       rclcpp::ParameterValue(0.1));
+      nh_->declare_parameter("plan_filter_distance",
+                      rclcpp::ParameterValue(0.0));
     }
     
     /**
@@ -167,6 +170,15 @@ public:
      * @param odom_topic topic name
      */
     virtual void setOdomTopic(const std::string& odom_topic) { (void)odom_topic; }
+
+    /**
+     * @brief Set the global plan to restrict costmap conversion to areas near the plan
+     *
+     * Some plugins use this to only process costmap cells within a certain
+     * distance of the global plan, reducing overhead on large maps.
+     * @param plan global plan as a sequence of stamped poses
+     */
+    virtual void setGlobalPlan(const std::vector<geometry_msgs::msg::PoseStamped>& plan) { (void)plan; }
 
     /**
      * @brief Determines whether an additional plugin for subsequent costmap conversion is specified

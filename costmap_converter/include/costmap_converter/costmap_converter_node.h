@@ -41,6 +41,7 @@
 #include <geometry_msgs/msg/polygon_stamped.hpp>
 #include <nav2_costmap_2d/costmap_2d.hpp>
 #include <nav_msgs/msg/occupancy_grid.hpp>
+#include <nav_msgs/msg/path.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 
 #include <costmap_converter/costmap_converter_interface.h>
@@ -69,6 +70,7 @@ class CostmapStandaloneConversion : public rclcpp::Node
   rclcpp::Publisher<costmap_converter_msgs::msg::ObstacleArrayMsg>::SharedPtr
       obstacle_pub_;
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
+  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr global_plan_sub_;
   rclcpp::TimerBase::SharedPtr pub_timer_;
   rclcpp::TimerBase::SharedPtr health_check_timer_;
 

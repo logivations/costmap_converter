@@ -42,6 +42,7 @@
 #include <geometry_msgs/msg/polygon_stamped.hpp>
 #include <nav2_costmap_2d/costmap_2d.hpp>
 #include <nav_msgs/msg/occupancy_grid.hpp>
+#include <nav_msgs/msg/path.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 
 #include <costmap_converter/costmap_converter_interface.h>
@@ -122,6 +123,17 @@ CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptio
   std::string odom_topic = "/odom";
   declare_parameter("odom_topic", rclcpp::ParameterValue(odom_topic));
   get_parameter_or<std::string>("odom_topic", odom_topic, odom_topic);
+
+  std::string global_plan_topic = "/plan";
+  declare_parameter("global_plan_topic", rclcpp::ParameterValue(global_plan_topic));
+  get_parameter_or<std::string>("global_plan_topic", global_plan_topic, global_plan_topic);
+
+  global_plan_sub_ = create_subscription<nav_msgs::msg::Path>(
+      global_plan_topic, 1,
+      [this](const nav_msgs::msg::Path::SharedPtr msg) {
+        if (converter_)
+          converter_->setGlobalPlan(msg->poses);
+      });
 
   if (converter_) {
     converter_->setOdomTopic(odom_topic);

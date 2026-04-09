@@ -17,6 +17,7 @@ find_package(class_loader REQUIRED)
 find_package(costmap_converter_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(nav2_costmap_2d REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
@@ -32,6 +33,7 @@ set(dependencies
     costmap_converter_msgs
     cv_bridge
     geometry_msgs
+    nav_msgs
     nav2_costmap_2d
     tf2
     tf2_geometry_msgs

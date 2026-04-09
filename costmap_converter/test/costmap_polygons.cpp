@@ -21,11 +21,13 @@ class CostmapToPolygons : public costmap_converter::CostmapToPolygonsDBSMCCH
   public:
     const std::vector<costmap_converter::CostmapToPolygonsDBSMCCH::KeyPoint>& points() const {return occupied_cells_;}
     costmap_converter::CostmapToPolygonsDBSMCCH::Parameters& parameters() {return parameter_;}
+    costmap_converter::CostmapToPolygonsDBSMCCH::Parameters& bufferedParameters() {return parameter_buffered_;}
     using costmap_converter::CostmapToPolygonsDBSMCCH::addPoint;
     using costmap_converter::CostmapToPolygonsDBSMCCH::regionQuery;
     using costmap_converter::CostmapToPolygonsDBSMCCH::dbScan;
     using costmap_converter::CostmapToPolygonsDBSMCCH::convexHull2;
     using costmap_converter::CostmapToPolygonsDBSMCCH::simplifyPolygon;
+    using costmap_converter::CostmapToPolygonsDBSMCCH::updateCostmap2D;
 };
 
 class CostmapToPolygonsDBSMCCHTest : public ::testing::Test
@@ -221,6 +223,145 @@ TEST(CostmapToPolygonsDBSMCCH, SimplifyPolygonPerfectLines)
   ASSERT_FLOAT_EQ(200., polygon.points[4].y);
   ASSERT_FLOAT_EQ(300., polygon.points[5].x);
   ASSERT_FLOAT_EQ(200., polygon.points[5].y);
+}
+
+// ===================== Plan Filter Tests =====================
+
+class PlanFilterTest : public ::testing::Test
+{
+protected:
+  void SetUp() override
+  {
+    // 100x100 cells, 0.1m resolution, origin at (-5,-5) => spans (-5,-5) to (5,5)
+    costmap = std::make_shared<nav2_costmap_2d::Costmap2D>(100, 100, 0.1, -5., -5.);
+
+    // Area A: cluster near the origin (0,0)
+    unsigned int mx, my;
+    costmap->worldToMap(0.0, 0.0, mx, my);
+    costmap->setCost(mx, my, nav2_costmap_2d::LETHAL_OBSTACLE);
+    costmap->setCost(mx + 1, my, nav2_costmap_2d::LETHAL_OBSTACLE);
+    costmap->setCost(mx, my + 1, nav2_costmap_2d::LETHAL_OBSTACLE);
+
+    // Area B: cluster far away at (4,4)
+    costmap->worldToMap(4.0, 4.0, mx, my);
+    costmap->setCost(mx, my, nav2_costmap_2d::LETHAL_OBSTACLE);
+    costmap->setCost(mx + 1, my, nav2_costmap_2d::LETHAL_OBSTACLE);
+
+    converter.setCostmap2D(costmap.get());
+
+    // Set reasonable defaults for the parameters
+    CostmapToPolygons::Parameters params;
+    params.max_distance_ = 0.4;
+    params.min_pts_ = 2;
+    params.max_pts_ = 30;
+    params.min_keypoint_separation_ = 0.1;
+    params.plan_filter_distance_ = 0.0;
+    converter.parameters() = params;
+    converter.bufferedParameters() = params;
+  }
+
+  geometry_msgs::msg::PoseStamped makePose(double x, double y)
+  {
+    geometry_msgs::msg::PoseStamped ps;
+    ps.pose.position.x = x;
+    ps.pose.position.y = y;
+    ps.pose.position.z = 0;
+    return ps;
+  }
+
+  CostmapToPolygons converter;
+  std::shared_ptr<nav2_costmap_2d::Costmap2D> costmap;
+};
+
+TEST_F(PlanFilterTest, DisabledByDefault)
+{
+  // plan_filter_distance = 0 (default), no plan set
+  // All 5 obstacle cells should be found
+  converter.updateCostmap2D();
+  ASSERT_EQ(5u, converter.points().size());
+}
+
+TEST_F(PlanFilterTest, EmptyPlanFallsBackToFullMap)
+{
+  // Enable filter distance but don't set a plan
+  converter.parameters().plan_filter_distance_ = 1.0;
+  converter.updateCostmap2D();
+
+  // Should still find all 5 obstacle cells (empty plan => full map)
+  ASSERT_EQ(5u, converter.points().size());
+}
+
+TEST_F(PlanFilterTest, FilterExcludesDistantObstacles)
+{
+  // Set plan near origin only
+  std::vector<geometry_msgs::msg::PoseStamped> plan;
+  plan.push_back(makePose(0.0, 0.0));
+  converter.setGlobalPlan(plan);
+
+  // Enable filter: 1m radius around plan points
+  converter.parameters().plan_filter_distance_ = 1.0;
+  converter.updateCostmap2D();
+
+  // Only Area A's 3 cells should be found; Area B at (4,4) is >1m away
+  ASSERT_EQ(3u, converter.points().size());
+}
+
+TEST_F(PlanFilterTest, FilterIncludesBothWhenPlanCoversAll)
+{
+  // Set plan that passes near both areas
+  std::vector<geometry_msgs::msg::PoseStamped> plan;
+  plan.push_back(makePose(0.0, 0.0));
+  plan.push_back(makePose(4.0, 4.0));
+  converter.setGlobalPlan(plan);
+
+  // 1m radius covers both clusters
+  converter.parameters().plan_filter_distance_ = 1.0;
+  converter.updateCostmap2D();
+
+  ASSERT_EQ(5u, converter.points().size());
+}
+
+TEST_F(PlanFilterTest, PlanPointsOutsideCostmapAreSkipped)
+{
+  // Plan point far outside the costmap bounds
+  std::vector<geometry_msgs::msg::PoseStamped> plan;
+  plan.push_back(makePose(100.0, 100.0));
+  converter.setGlobalPlan(plan);
+
+  converter.parameters().plan_filter_distance_ = 1.0;
+  converter.updateCostmap2D();
+
+  // No cells in range of the out-of-bounds plan point => 0 obstacles
+  ASSERT_EQ(0u, converter.points().size());
+}
+
+TEST_F(PlanFilterTest, LargeRadiusCoversEntireMap)
+{
+  std::vector<geometry_msgs::msg::PoseStamped> plan;
+  plan.push_back(makePose(0.0, 0.0));
+  converter.setGlobalPlan(plan);
+
+  // Radius large enough to cover entire 10m x 10m map from center
+  converter.parameters().plan_filter_distance_ = 20.0;
+  converter.updateCostmap2D();
+
+  ASSERT_EQ(5u, converter.points().size());
+}
+
+TEST_F(PlanFilterTest, NoDuplicatesFromOverlappingPlanPoints)
+{
+  // Multiple plan points near the same area should not cause duplicate cells
+  std::vector<geometry_msgs::msg::PoseStamped> plan;
+  plan.push_back(makePose(0.0, 0.0));
+  plan.push_back(makePose(0.05, 0.0));
+  plan.push_back(makePose(0.1, 0.0));
+  converter.setGlobalPlan(plan);
+
+  converter.parameters().plan_filter_distance_ = 1.0;
+  converter.updateCostmap2D();
+
+  // Still exactly 3 cells from Area A, no duplicates
+  ASSERT_EQ(3u, converter.points().size());
 }
 
 int main(int argc, char** argv)
