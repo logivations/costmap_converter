@@ -35,14 +35,14 @@ The standalone node subscribes to the configured `global_plan_topic` automatical
 
 #### Performance
 
-Benchmark on a 14m x 14m map at 0.05m resolution (280x280 = 78,400 cells, 60% occupied):
+Benchmark on a 14m x 14m map at 0.05m resolution (280x280 = 78,400 cells, 60% occupied), using AMR production parameters (`cluster_max_distance=0.3`, `cluster_min_pts=1`, `cluster_max_pts=10`, `convex_hull_min_pt_separation=0.01`):
 
 | Environment | Full map | Filtered (2m corridor) | Speedup |
 |---|---|---|---|
-| CI (x86_64) | 48.6 ms (46,993 pts) | 13.2 ms (13,505 pts) | **3.7x** |
-| AMR47 (embedded) | 111.2 ms (46,993 pts) | 31.3 ms (13,505 pts) | **3.5x** |
+| CI (x86_64) | 38.2 ms (46,993 pts) | 10.6 ms (13,505 pts) | **3.6x** |
+| AMR47 (embedded) | 88.4 ms (46,993 pts) | 25.1 ms (13,505 pts) | **3.5x** |
 
-The filter reduces processed obstacle points by 71%, with the largest absolute savings on resource-constrained embedded hardware where the full map scan exceeds 100ms per cycle.
+The filter reduces processed obstacle points by 71%, with the largest absolute savings on resource-constrained embedded hardware where the full map scan approaches 90ms per cycle.
 
 
 ### Contributors
