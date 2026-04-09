@@ -1,5 +1,6 @@
 #include <random>
 #include <memory>
+#include <chrono>
 #include <gtest/gtest.h>
 
 #include <costmap_converter/costmap_to_polygons.h>
@@ -362,6 +363,112 @@ TEST_F(PlanFilterTest, NoDuplicatesFromOverlappingPlanPoints)
 
   // Still exactly 3 cells from Area A, no duplicates
   ASSERT_EQ(3u, converter.points().size());
+}
+
+// ===================== Performance Test =====================
+
+TEST(PlanFilterPerf, LargeMap60PercentObstacle)
+{
+  // 14m x 14m at 0.05m resolution = 280x280 = 78400 cells
+  const double width = 14.0;
+  const double height = 14.0;
+  const double resolution = 0.05;
+  const unsigned int cells_x = static_cast<unsigned int>(width / resolution);
+  const unsigned int cells_y = static_cast<unsigned int>(height / resolution);
+  const double origin_x = 0.0;
+  const double origin_y = 0.0;
+
+  auto costmap = std::make_shared<nav2_costmap_2d::Costmap2D>(
+      cells_x, cells_y, resolution, origin_x, origin_y);
+
+  // Fill 60% of cells with LETHAL_OBSTACLE using a deterministic seed
+  std::mt19937 rng(42);
+  std::uniform_real_distribution<> dist(0.0, 1.0);
+  unsigned int obstacle_count = 0;
+  for (unsigned int i = 0; i < cells_x; ++i)
+  {
+    for (unsigned int j = 0; j < cells_y; ++j)
+    {
+      if (dist(rng) < 0.6)
+      {
+        costmap->setCost(i, j, nav2_costmap_2d::LETHAL_OBSTACLE);
+        ++obstacle_count;
+      }
+    }
+  }
+
+  // Build a global plan as a straight line through the middle of the map
+  // from (1, 7) to (13, 7), with poses every 0.1m
+  std::vector<geometry_msgs::msg::PoseStamped> plan;
+  for (double x = 1.0; x <= 13.0; x += 0.1)
+  {
+    geometry_msgs::msg::PoseStamped ps;
+    ps.pose.position.x = x;
+    ps.pose.position.y = height / 2.0;
+    ps.pose.position.z = 0;
+    plan.push_back(ps);
+  }
+
+  const int iterations = 20;
+
+  // --- Benchmark WITHOUT plan filter (full map scan) ---
+  CostmapToPolygons converter_full;
+  converter_full.parameters().max_distance_ = 0.4;
+  converter_full.parameters().min_pts_ = 2;
+  converter_full.parameters().max_pts_ = 30;
+  converter_full.parameters().min_keypoint_separation_ = 0.1;
+  converter_full.parameters().plan_filter_distance_ = 0.0;
+  converter_full.setCostmap2D(costmap.get());
+
+  auto t0 = std::chrono::high_resolution_clock::now();
+  for (int iter = 0; iter < iterations; ++iter)
+  {
+    converter_full.updateCostmap2D();
+    converter_full.compute();
+  }
+  auto t1 = std::chrono::high_resolution_clock::now();
+  double ms_full = std::chrono::duration<double, std::milli>(t1 - t0).count() / iterations;
+  size_t points_full = converter_full.points().size();
+
+  // --- Benchmark WITH plan filter (2m corridor around plan) ---
+  CostmapToPolygons converter_filtered;
+  converter_filtered.parameters().max_distance_ = 0.4;
+  converter_filtered.parameters().min_pts_ = 2;
+  converter_filtered.parameters().max_pts_ = 30;
+  converter_filtered.parameters().min_keypoint_separation_ = 0.1;
+  converter_filtered.parameters().plan_filter_distance_ = 2.0;
+  converter_filtered.setCostmap2D(costmap.get());
+  converter_filtered.setGlobalPlan(plan);
+
+  auto t2 = std::chrono::high_resolution_clock::now();
+  for (int iter = 0; iter < iterations; ++iter)
+  {
+    converter_filtered.updateCostmap2D();
+    converter_filtered.compute();
+  }
+  auto t3 = std::chrono::high_resolution_clock::now();
+  double ms_filtered = std::chrono::duration<double, std::milli>(t3 - t2).count() / iterations;
+  size_t points_filtered = converter_filtered.points().size();
+
+  double speedup = ms_full / ms_filtered;
+
+  printf("\n");
+  printf("=== Plan Filter Performance Test ===\n");
+  printf("Map: %ux%u cells (%.0fm x %.0fm @ %.2fm), %.1f%% obstacle (%u cells)\n",
+         cells_x, cells_y, width, height, resolution,
+         100.0 * obstacle_count / (cells_x * cells_y), obstacle_count);
+  printf("Plan: %zu poses, filter distance: 2.0m\n", plan.size());
+  printf("Iterations: %d\n", iterations);
+  printf("\n");
+  printf("  Full map:   %8.2f ms/iter  (%zu obstacle points)\n", ms_full, points_full);
+  printf("  Filtered:   %8.2f ms/iter  (%zu obstacle points)\n", ms_filtered, points_filtered);
+  printf("  Speedup:    %.1fx\n", speedup);
+  printf("====================================\n\n");
+
+  // The filtered version should process fewer points
+  EXPECT_LT(points_filtered, points_full);
+  // The filtered version should be faster
+  EXPECT_LT(ms_filtered, ms_full);
 }
 
 int main(int argc, char** argv)
