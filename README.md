@@ -37,11 +37,12 @@ The standalone node subscribes to the configured `global_plan_topic` automatical
 
 Benchmark on a 14m x 14m map at 0.05m resolution (280x280 = 78,400 cells, 60% occupied):
 
-| Mode | Time per iteration | Obstacle points processed |
-|---|---|---|
-| Full map (no filter) | 48.6 ms | 46,993 |
-| Filtered (2m corridor) | 13.2 ms | 13,505 |
-| **Speedup** | **3.7x** | **71% fewer points** |
+| Environment | Full map | Filtered (2m corridor) | Speedup |
+|---|---|---|---|
+| CI (x86_64) | 48.6 ms (46,993 pts) | 13.2 ms (13,505 pts) | **3.7x** |
+| AMR47 (embedded) | 111.2 ms (46,993 pts) | 31.3 ms (13,505 pts) | **3.5x** |
+
+The filter reduces processed obstacle points by 71%, with the largest absolute savings on resource-constrained embedded hardware where the full map scan exceeds 100ms per cycle.
 
 
 ### Contributors
