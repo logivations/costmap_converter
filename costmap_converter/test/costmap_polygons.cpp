@@ -411,12 +411,18 @@ TEST(PlanFilterPerf, LargeMap60PercentObstacle)
 
   const int iterations = 20;
 
+  // AMR production parameters (costmap_converter_narrow config)
+  const double cluster_max_distance = 0.3;
+  const int cluster_min_pts = 1;
+  const int cluster_max_pts = 10;
+  const double convex_hull_min_pt_separation = 0.01;
+
   // --- Benchmark WITHOUT plan filter (full map scan) ---
   CostmapToPolygons converter_full;
-  converter_full.parameters().max_distance_ = 0.4;
-  converter_full.parameters().min_pts_ = 2;
-  converter_full.parameters().max_pts_ = 30;
-  converter_full.parameters().min_keypoint_separation_ = 0.1;
+  converter_full.parameters().max_distance_ = cluster_max_distance;
+  converter_full.parameters().min_pts_ = cluster_min_pts;
+  converter_full.parameters().max_pts_ = cluster_max_pts;
+  converter_full.parameters().min_keypoint_separation_ = convex_hull_min_pt_separation;
   converter_full.parameters().plan_filter_distance_ = 0.0;
   converter_full.setCostmap2D(costmap.get());
 
@@ -432,10 +438,10 @@ TEST(PlanFilterPerf, LargeMap60PercentObstacle)
 
   // --- Benchmark WITH plan filter (2m corridor around plan) ---
   CostmapToPolygons converter_filtered;
-  converter_filtered.parameters().max_distance_ = 0.4;
-  converter_filtered.parameters().min_pts_ = 2;
-  converter_filtered.parameters().max_pts_ = 30;
-  converter_filtered.parameters().min_keypoint_separation_ = 0.1;
+  converter_filtered.parameters().max_distance_ = cluster_max_distance;
+  converter_filtered.parameters().min_pts_ = cluster_min_pts;
+  converter_filtered.parameters().max_pts_ = cluster_max_pts;
+  converter_filtered.parameters().min_keypoint_separation_ = convex_hull_min_pt_separation;
   converter_filtered.parameters().plan_filter_distance_ = 2.0;
   converter_filtered.setCostmap2D(costmap.get());
   converter_filtered.setGlobalPlan(plan);
@@ -457,6 +463,8 @@ TEST(PlanFilterPerf, LargeMap60PercentObstacle)
   printf("Map: %ux%u cells (%.0fm x %.0fm @ %.2fm), %.1f%% obstacle (%u cells)\n",
          cells_x, cells_y, width, height, resolution,
          100.0 * obstacle_count / (cells_x * cells_y), obstacle_count);
+  printf("Params: max_dist=%.2f, min_pts=%d, max_pts=%d, min_sep=%.2f\n",
+         cluster_max_distance, cluster_min_pts, cluster_max_pts, convex_hull_min_pt_separation);
   printf("Plan: %zu poses, filter distance: 2.0m\n", plan.size());
   printf("Iterations: %d\n", iterations);
   printf("\n");
