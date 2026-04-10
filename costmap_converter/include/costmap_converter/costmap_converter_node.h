@@ -40,19 +40,23 @@
 
 #include <geometry_msgs/msg/polygon_stamped.hpp>
 #include <nav2_costmap_2d/costmap_2d.hpp>
+#include <nav2_costmap_2d/costmap_2d_ros.hpp>
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <nav_msgs/msg/path.hpp>
 #include <visualization_msgs/msg/marker.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <costmap_converter/costmap_converter_interface.h>
 
-class CostmapStandaloneConversion : public rclcpp::Node 
+class CostmapStandaloneConversion : public rclcpp::Node
 {
  public:
   explicit CostmapStandaloneConversion(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
   void healthCheck();
   void publishCallback();
+  void costmapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
   void publishAsMarker(
       const std::string &frame_id,
       const std::vector<geometry_msgs::msg::PolygonStamped> &polygonStamped);
@@ -65,8 +69,19 @@ class CostmapStandaloneConversion : public rclcpp::Node
   std::shared_ptr<costmap_converter::BaseCostmapToPolygons> converter_;
 
   rclcpp::Node::SharedPtr n_;
+
+  // Timer-based mode (conversion_interval > 0): full Costmap2DROS
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   std::unique_ptr<std::thread> costmap_thread_;
+
+  // Event-driven mode (conversion_interval == 0): lightweight Costmap2D
+  std::shared_ptr<nav2_costmap_2d::Costmap2D> costmap_direct_;
+  rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr costmap_sub_;
+
+  // TF for global plan transforms (event-driven mode)
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+
   rclcpp::Publisher<costmap_converter_msgs::msg::ObstacleArrayMsg>::SharedPtr
       obstacle_pub_;
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;

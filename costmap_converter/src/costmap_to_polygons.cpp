@@ -127,6 +127,7 @@ void CostmapToPolygonsDBSMCCH::initialize(rclcpp::Node::SharedPtr nh)
     nh->get_parameter_or<int>("cluster_max_pts", parameter_.max_pts_, parameter_.max_pts_);
     nh->get_parameter_or<double>("convex_hull_min_pt_separation", parameter_.min_keypoint_separation_, parameter_.min_keypoint_separation_);
     nh->get_parameter_or<double>("plan_filter_distance", parameter_.plan_filter_distance_, parameter_.plan_filter_distance_);
+    nh->get_parameter_or<double>("no_plan_radius", parameter_.no_plan_radius_, parameter_.no_plan_radius_);
 
     dyn_params_handler_ = nh->add_on_set_parameters_callback(
     std::bind(
@@ -154,6 +155,9 @@ rcl_interfaces::msg::SetParametersResult CostmapToPolygonsDBSMCCH::dynamicParame
       }
       else if (param_name == "plan_filter_distance") {
         parameter_.plan_filter_distance_ = parameter.as_double();
+      }
+      else if (param_name == "no_plan_radius") {
+        parameter_.no_plan_radius_ = parameter.as_double();
       }
     }
 
@@ -253,12 +257,15 @@ void CostmapToPolygonsDBSMCCH::updateCostmap2D()
         // Only process cells within plan_filter_distance of the global plan
         int radius_cells = static_cast<int>(std::ceil(parameter_.plan_filter_distance_ / costmap_->getResolution()));
         std::vector<bool> visited(size_x * size_y, false);
+        int plan_poses_in_costmap = 0;
 
         for (const geometry_msgs::msg::PoseStamped& pose : plan)
         {
           unsigned int mx, my;
           if (!costmap_->worldToMap(pose.pose.position.x, pose.pose.position.y, mx, my))
             continue; // plan point outside costmap bounds
+
+          ++plan_poses_in_costmap;
 
           // compute bounding box clamped to map bounds
           int min_i = std::max(0, static_cast<int>(mx) - radius_cells);
@@ -284,10 +291,55 @@ void CostmapToPolygonsDBSMCCH::updateCostmap2D()
             }
           }
         }
+
+        if (plan_poses_in_costmap == 0)
+        {
+          RCLCPP_WARN_THROTTLE(getLogger(), *getClock(), 10000,
+            "plan_filter_distance=%.1f: global plan has %zu poses but none are within costmap bounds "
+            "(origin=[%.1f,%.1f], size=[%.1f,%.1f]). No obstacles will be detected.",
+            parameter_.plan_filter_distance_, plan.size(),
+            costmap_->getOriginX(), costmap_->getOriginY(),
+            costmap_->getSizeInMetersX(), costmap_->getSizeInMetersY());
+        }
+      }
+      else if (parameter_.no_plan_radius_ > 0)
+      {
+        // No global plan available: only process cells within no_plan_radius of the robot
+        // Robot is at the center of the costmap
+        double robot_x = costmap_->getOriginX() + costmap_->getSizeInMetersX() / 2.0;
+        double robot_y = costmap_->getOriginY() + costmap_->getSizeInMetersY() / 2.0;
+        int radius_cells = static_cast<int>(std::ceil(parameter_.no_plan_radius_ / costmap_->getResolution()));
+
+        unsigned int robot_mx, robot_my;
+        costmap_->worldToMap(robot_x, robot_y, robot_mx, robot_my);
+
+        int min_i = std::max(0, static_cast<int>(robot_mx) - radius_cells);
+        int max_i = std::min(static_cast<int>(size_x) - 1, static_cast<int>(robot_mx) + radius_cells);
+        int min_j = std::max(0, static_cast<int>(robot_my) - radius_cells);
+        int max_j = std::min(static_cast<int>(size_y) - 1, static_cast<int>(robot_my) + radius_cells);
+
+        double radius_sq = parameter_.no_plan_radius_ * parameter_.no_plan_radius_;
+        for (int i = min_i; i <= max_i; ++i)
+        {
+          for (int j = min_j; j <= max_j; ++j)
+          {
+            if (costmap_->getCost(i, j) >= nav2_costmap_2d::LETHAL_OBSTACLE)
+            {
+              double x, y;
+              costmap_->mapToWorld(static_cast<unsigned int>(i), static_cast<unsigned int>(j), x, y);
+              double dx = x - robot_x;
+              double dy = y - robot_y;
+              if (dx * dx + dy * dy <= radius_sq)
+              {
+                addPoint(x, y);
+              }
+            }
+          }
+        }
       }
       else
       {
-        // No plan filter: process all cells (original behavior)
+        // No plan filter and no radius filter: process all cells
         for (std::size_t i = 0; i < size_x; i++)
         {
           for (std::size_t j = 0; j < size_y; j++)

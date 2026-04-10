@@ -97,6 +97,8 @@ public:
                       rclcpp::ParameterValue(0.1));
       nh_->declare_parameter("plan_filter_distance",
                       rclcpp::ParameterValue(0.0));
+      nh_->declare_parameter("no_plan_radius",
+                      rclcpp::ParameterValue(4.0));
     }
     
     /**
@@ -292,6 +294,11 @@ protected:
     rclcpp::Time now() const
     {
         return nh_->now();
+    }
+
+    rclcpp::Clock::SharedPtr getClock() const
+    {
+        return nh_->get_clock();
     }
     
 private:

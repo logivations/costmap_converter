@@ -44,6 +44,7 @@
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <nav_msgs/msg/path.hpp>
 #include <visualization_msgs/msg/marker.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include <costmap_converter/costmap_converter_interface.h>
 #include <costmap_converter/costmap_converter_node.h>
@@ -53,27 +54,12 @@ CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptio
     : rclcpp::Node("costmap_converter", options),
       converter_loader_("costmap_converter",
                         "costmap_converter::BaseCostmapToPolygons") {
-  costmap_ros_ =
-      std::make_shared<nav2_costmap_2d::Costmap2DROS>("converter_costmap",
-         std::string{get_namespace()}, get_parameter("use_sim_time").as_bool());
-  costmap_thread_ = std::make_unique<std::thread>(
-      [](rclcpp_lifecycle::LifecycleNode::SharedPtr node) {
-        rclcpp::spin(node->get_node_base_interface());
-      },
-      costmap_ros_);
-  rclcpp_lifecycle::State state;
-  costmap_ros_->on_configure(state);
-  costmap_ros_->on_activate(state);
-
   n_ = std::shared_ptr<rclcpp::Node>(this, [](rclcpp::Node *) {});
-  // load converter plugin from parameter server, otherwise set default
 
   std::string converter_plugin =
       "costmap_converter::CostmapToPolygonsDBSMCCH";
-
   declare_parameter("converter_plugin",
                     rclcpp::ParameterValue(converter_plugin));
-
   get_parameter_or<std::string>("converter_plugin", converter_plugin,
                                 converter_plugin);
 
@@ -86,7 +72,7 @@ CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptio
     rclcpp::shutdown();
     return;
   }
-        
+
   RCLCPP_INFO(get_logger(), "Standalone costmap converter: %s loaded.",
               converter_plugin.c_str());
 
@@ -114,7 +100,7 @@ CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptio
   get_parameter_or<int>("occupied_min_value", occupied_min_value_,
                         occupied_min_value_);
 
-  conversion_interval_ = 500;
+  conversion_interval_ = 0;
   declare_parameter("conversion_interval",
                     rclcpp::ParameterValue(conversion_interval_));
   get_parameter_or<int>("conversion_interval", conversion_interval_,
@@ -128,18 +114,42 @@ CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptio
   declare_parameter("global_plan_topic", rclcpp::ParameterValue(global_plan_topic));
   get_parameter_or<std::string>("global_plan_topic", global_plan_topic, global_plan_topic);
 
+  // TF buffer for global plan transforms
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(get_clock());
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
   global_plan_sub_ = create_subscription<nav_msgs::msg::Path>(
       global_plan_topic, 1,
       [this](const nav_msgs::msg::Path::SharedPtr msg) {
-        if (converter_)
+        if (!converter_)
+          return;
+        if (msg->header.frame_id.empty() || msg->header.frame_id == frame_id_) {
           converter_->setGlobalPlan(msg->poses);
+          return;
+        }
+        // Transform plan poses from plan frame into costmap frame
+        try {
+          geometry_msgs::msg::TransformStamped transform =
+              tf_buffer_->lookupTransform(frame_id_, msg->header.frame_id, tf2::TimePointZero);
+          std::vector<geometry_msgs::msg::PoseStamped> transformed_plan;
+          transformed_plan.reserve(msg->poses.size());
+          for (const auto& pose : msg->poses) {
+            geometry_msgs::msg::PoseStamped transformed_pose;
+            tf2::doTransform(pose, transformed_pose, transform);
+            transformed_plan.push_back(transformed_pose);
+          }
+          converter_->setGlobalPlan(transformed_plan);
+        } catch (const tf2::TransformException& ex) {
+          RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
+              "Could not transform global plan from '%s' to '%s': %s",
+              msg->header.frame_id.c_str(), frame_id_.c_str(), ex.what());
+          converter_->setGlobalPlan(msg->poses);
+        }
       });
 
   if (converter_) {
     converter_->setOdomTopic(odom_topic);
-    converter_->initialize(
-        shared_from_this());
-    converter_->setCostmap2D(costmap_ros_->getCostmap());
+    converter_->initialize(shared_from_this());
   }
 
   last_publish_time_ = now();
@@ -147,9 +157,55 @@ CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptio
       rclcpp::CallbackGroupType::MutuallyExclusive);
   cb_group2_ = this->create_callback_group(
       rclcpp::CallbackGroupType::MutuallyExclusive);
-  pub_timer_ = n_->create_wall_timer(
-      std::chrono::milliseconds(conversion_interval_),
-      std::bind(&CostmapStandaloneConversion::publishCallback, this), cb_group1_);
+
+  if (conversion_interval_ > 0) {
+    // Timer-based mode: use full Costmap2DROS
+    costmap_ros_ =
+        std::make_shared<nav2_costmap_2d::Costmap2DROS>("converter_costmap",
+           std::string{get_namespace()}, get_parameter("use_sim_time").as_bool());
+    costmap_thread_ = std::make_unique<std::thread>(
+        [](rclcpp_lifecycle::LifecycleNode::SharedPtr node) {
+          rclcpp::spin(node->get_node_base_interface());
+        },
+        costmap_ros_);
+    rclcpp_lifecycle::State state;
+    costmap_ros_->on_configure(state);
+    costmap_ros_->on_activate(state);
+
+    if (converter_) {
+      converter_->setCostmap2D(costmap_ros_->getCostmap());
+    }
+
+    pub_timer_ = n_->create_wall_timer(
+        std::chrono::milliseconds(conversion_interval_),
+        std::bind(&CostmapStandaloneConversion::publishCallback, this), cb_group1_);
+  } else {
+    // Event-driven mode: own a lightweight Costmap2D, subscribe to OccupancyGrid
+    costmap_direct_ = std::make_shared<nav2_costmap_2d::Costmap2D>();
+
+    if (converter_) {
+      converter_->setCostmap2D(costmap_direct_.get());
+    }
+
+    std::string costmap_topic = "costmap";
+    declare_parameter("costmap_topic",
+                      rclcpp::ParameterValue(costmap_topic));
+    get_parameter_or<std::string>("costmap_topic", costmap_topic,
+                                  costmap_topic);
+
+    RCLCPP_INFO(get_logger(),
+        "Event-driven mode: converting on each costmap update from '%s'",
+        costmap_topic.c_str());
+
+    rclcpp::SubscriptionOptions sub_opts;
+    sub_opts.callback_group = cb_group1_;
+    costmap_sub_ = create_subscription<nav_msgs::msg::OccupancyGrid>(
+        costmap_topic, rclcpp::SensorDataQoS(),
+        std::bind(&CostmapStandaloneConversion::costmapCallback, this,
+                  std::placeholders::_1),
+        sub_opts);
+  }
+
   health_check_timer_ = n_->create_wall_timer(
       std::chrono::milliseconds(5000),
       std::bind(&CostmapStandaloneConversion::healthCheck, this), cb_group2_);
@@ -166,6 +222,37 @@ void CostmapStandaloneConversion::healthCheck() {
 }
 
 
+void CostmapStandaloneConversion::costmapCallback(
+    const nav_msgs::msg::OccupancyGrid::SharedPtr msg) {
+  frame_id_ = msg->header.frame_id;
+
+  unsigned int size_x = msg->info.width;
+  unsigned int size_y = msg->info.height;
+  double resolution = msg->info.resolution;
+  double origin_x = msg->info.origin.position.x;
+  double origin_y = msg->info.origin.position.y;
+
+  {
+    auto* mutex = costmap_direct_->getMutex();
+    std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*mutex);
+
+    costmap_direct_->resizeMap(size_x, size_y, resolution, origin_x, origin_y);
+    unsigned char* costmap_data = costmap_direct_->getCharMap();
+    for (unsigned int i = 0; i < size_x * size_y; ++i) {
+      int8_t value = msg->data[i];
+      if (value < 0) {
+        costmap_data[i] = nav2_costmap_2d::NO_INFORMATION;
+      } else if (value >= occupied_min_value_) {
+        costmap_data[i] = nav2_costmap_2d::LETHAL_OBSTACLE;
+      } else {
+        costmap_data[i] = nav2_costmap_2d::FREE_SPACE;
+      }
+    }
+  }
+
+  publishCallback();
+}
+
 void CostmapStandaloneConversion::publishCallback() {
   converter_->workerCallback();
   if (respawn_) {
@@ -177,7 +264,9 @@ void CostmapStandaloneConversion::publishCallback() {
     RCLCPP_INFO(get_logger(), "got obstacles");
   }
   if (!obstacles) return;
-  frame_id_ = costmap_ros_->getGlobalFrameID();
+  if (costmap_ros_) {
+    frame_id_ = costmap_ros_->getGlobalFrameID();
+  }
   obstacles->header.frame_id = frame_id_;
   obstacles->header.stamp = now();
   obstacle_pub_->publish(*obstacles);

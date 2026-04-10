@@ -105,7 +105,7 @@ class CostmapToPolygonsDBSMCCH : public BaseCostmapToPolygons
      */
     struct Parameters
     {
-      Parameters() : max_distance_(0.4), min_pts_(2), max_pts_(30), min_keypoint_separation_(0.1), plan_filter_distance_(0.0) {}
+      Parameters() : max_distance_(0.4), min_pts_(2), max_pts_(30), min_keypoint_separation_(0.1), plan_filter_distance_(0.0), no_plan_radius_(4.0) {}
       // DBSCAN parameters
       double max_distance_; //!< Parameter for DB_Scan, maximum distance to neighbors [m]
       int min_pts_; //!< Parameter for DB_Scan: minimum number of points that define a cluster
@@ -116,6 +116,7 @@ class CostmapToPolygonsDBSMCCH : public BaseCostmapToPolygons
 
       // plan filter parameters
       double plan_filter_distance_; //!< Only process costmap cells within this distance [m] of the global plan (0: disabled, process all cells)
+      double no_plan_radius_; //!< When no global plan is available, only process cells within this radius [m] of the robot (0: disabled, process all cells)
     };
     
     /**
