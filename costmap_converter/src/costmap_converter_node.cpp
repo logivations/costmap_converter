@@ -255,14 +255,8 @@ void CostmapStandaloneConversion::costmapCallback(
 
 void CostmapStandaloneConversion::publishCallback() {
   converter_->workerCallback();
-  if (respawn_) {
-    RCLCPP_INFO(get_logger(), "getting obstacles...");
-  }
   costmap_converter::ObstacleArrayPtr obstacles =
       converter_->getObstacles();
-  if (respawn_) {
-    RCLCPP_INFO(get_logger(), "got obstacles");
-  }
   if (!obstacles) return;
   if (costmap_ros_) {
     frame_id_ = costmap_ros_->getGlobalFrameID();
@@ -270,13 +264,7 @@ void CostmapStandaloneConversion::publishCallback() {
   obstacles->header.frame_id = frame_id_;
   obstacles->header.stamp = now();
   obstacle_pub_->publish(*obstacles);
-  if (respawn_) {
-    RCLCPP_INFO(get_logger(), "published obstacles");
-  }
   publishAsMarker(*obstacles);
-  if (respawn_) {
-    RCLCPP_INFO(get_logger(), "published markers");
-  }
   last_publish_time_ = now();
 }
 
