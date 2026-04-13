@@ -52,6 +52,7 @@
 
 CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptions & options)
     : rclcpp::Node("costmap_converter", options),
+      is_composable_(options.use_intra_process_comms()),
       converter_loader_("costmap_converter",
                         "costmap_converter::BaseCostmapToPolygons") {
   n_ = std::shared_ptr<rclcpp::Node>(this, [](rclcpp::Node *) {});
@@ -213,6 +214,11 @@ CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptio
 
 void CostmapStandaloneConversion::healthCheck() {
   if (respawn_ && now() - last_publish_time_ > std::chrono::seconds(20)){
+    if (is_composable_) {
+      RCLCPP_WARN(get_logger(), "costmap_converter_node has not published for 20 seconds, "
+          "skipping exit(0) because node is running as a composable node");
+      return;
+    }
     exit(0);
   }
   if (now() - last_publish_time_ > std::chrono::seconds(10)) {

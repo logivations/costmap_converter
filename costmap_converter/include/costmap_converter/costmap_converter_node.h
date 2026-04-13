@@ -64,6 +64,7 @@ class CostmapStandaloneConversion : public rclcpp::Node
       const costmap_converter_msgs::msg::ObstacleArrayMsg &obstacles);
 
  private:
+  bool is_composable_ = false;
   pluginlib::ClassLoader<costmap_converter::BaseCostmapToPolygons>
       converter_loader_;
   std::shared_ptr<costmap_converter::BaseCostmapToPolygons> converter_;
