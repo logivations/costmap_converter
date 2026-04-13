@@ -54,9 +54,8 @@ class CostmapStandaloneConversion : public rclcpp::Node
  public:
   explicit CostmapStandaloneConversion(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
-  void healthCheck();
   void publishCallback();
-  void costmapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
+  void costmapCallback(nav_msgs::msg::OccupancyGrid::UniquePtr msg);
   void publishAsMarker(
       const std::string &frame_id,
       const std::vector<geometry_msgs::msg::PolygonStamped> &polygonStamped);
@@ -64,7 +63,6 @@ class CostmapStandaloneConversion : public rclcpp::Node
       const costmap_converter_msgs::msg::ObstacleArrayMsg &obstacles);
 
  private:
-  bool is_composable_ = false;
   pluginlib::ClassLoader<costmap_converter::BaseCostmapToPolygons>
       converter_loader_;
   std::shared_ptr<costmap_converter::BaseCostmapToPolygons> converter_;
@@ -88,14 +86,9 @@ class CostmapStandaloneConversion : public rclcpp::Node
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr global_plan_sub_;
   rclcpp::TimerBase::SharedPtr pub_timer_;
-  rclcpp::TimerBase::SharedPtr health_check_timer_;
-
   std::string frame_id_;
   int occupied_min_value_;
   int conversion_interval_;
-  rclcpp::Time last_publish_time_;
-  bool respawn_ = false;
   rclcpp::CallbackGroup::SharedPtr cb_group1_;
-  rclcpp::CallbackGroup::SharedPtr cb_group2_;
 
 };

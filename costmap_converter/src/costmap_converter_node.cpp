@@ -52,7 +52,6 @@
 
 CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptions & options)
     : rclcpp::Node("costmap_converter", options),
-      is_composable_(options.use_intra_process_comms()),
       converter_loader_("costmap_converter",
                         "costmap_converter::BaseCostmapToPolygons") {
   n_ = std::shared_ptr<rclcpp::Node>(this, [](rclcpp::Node *) {});
@@ -153,11 +152,9 @@ CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptio
     converter_->initialize(shared_from_this());
   }
 
-  last_publish_time_ = now();
   cb_group1_ = this->create_callback_group(
       rclcpp::CallbackGroupType::MutuallyExclusive);
-  cb_group2_ = this->create_callback_group(
-      rclcpp::CallbackGroupType::MutuallyExclusive);
+
 
   if (conversion_interval_ > 0) {
     // Timer-based mode: use full Costmap2DROS
@@ -207,29 +204,11 @@ CostmapStandaloneConversion::CostmapStandaloneConversion(const rclcpp::NodeOptio
         sub_opts);
   }
 
-  health_check_timer_ = n_->create_wall_timer(
-      std::chrono::milliseconds(5000),
-      std::bind(&CostmapStandaloneConversion::healthCheck, this), cb_group2_);
-}
-
-void CostmapStandaloneConversion::healthCheck() {
-  if (respawn_ && now() - last_publish_time_ > std::chrono::seconds(20)){
-    if (is_composable_) {
-      RCLCPP_WARN(get_logger(), "costmap_converter_node has not published for 20 seconds, "
-          "skipping exit(0) because node is running as a composable node");
-      return;
-    }
-    exit(0);
-  }
-  if (now() - last_publish_time_ > std::chrono::seconds(10)) {
-    RCLCPP_ERROR(get_logger(), "costmap_converter_node has not published for 10 seconds, terminating...");
-    respawn_ = true;
-  }
 }
 
 
 void CostmapStandaloneConversion::costmapCallback(
-    const nav_msgs::msg::OccupancyGrid::SharedPtr msg) {
+    nav_msgs::msg::OccupancyGrid::UniquePtr msg) {
   frame_id_ = msg->header.frame_id;
 
   unsigned int size_x = msg->info.width;
@@ -271,7 +250,6 @@ void CostmapStandaloneConversion::publishCallback() {
   obstacles->header.stamp = now();
   obstacle_pub_->publish(*obstacles);
   publishAsMarker(*obstacles);
-  last_publish_time_ = now();
 }
 
 void CostmapStandaloneConversion::publishAsMarker(
